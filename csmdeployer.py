@@ -980,9 +980,9 @@ spec:
                         else:
                             print("cluster-config.yaml 文件中未找到有效的 spec 部分。")
                     else:
-                        print("配置文件中未找到有效的 spec 部分或为空。默认将使用默认配置。")
+                        print("config.yaml 配置文件中未找到有效的 spec 部分或为空。默认将使用默认配置。")
             else:
-                print("未找到配置文件。将使用默认配置")
+                print("未找到 config.yaml 配置文件。将使用默认配置")
 
 
             # 执行部署
@@ -1024,9 +1024,9 @@ spec:
                         if images.get('kubectl-admin'):
                             self.set_image_deployment('kubectl-admin', images['kubectl-admin'], 'feixitek/kubectl-ppc64le:1.20.4', 'kubesphere-controls-system')
                     else:
-                        print("配置文件中未找到镜像部分。按照默认方法执行")
+                        print("image.yaml 配置文件中未找到镜像部分。按照默认方法执行")
             else:
-                print("未找到配置文件。按照默认方法执行")
+                print("未找到 image.yaml 配置文件。按照默认方法执行")
 
             return True
         except Exception as e:
@@ -1064,14 +1064,14 @@ spec:
                     if custom_controller_ip['controller_ip']:
                         controller_ip_value = f"http://{custom_controller_ip['controller_ip']}"
                     else:
-                        print("配置文件中 controller_ip 部分为空！")
-                        exit()
+                        print("config.yaml 配置文件中 controller_ip 部分为空！")
+                        sys.exit()
                 else:
-                    print("配置文件中未找到有效的 controller_ip 部分")
-                    exit()
+                    print("config.yaml 配置文件中未找到有效的 controller_ip 部分")
+                    sys.exit()
             else:
-                print("未找到配置文件。")
-                exit()
+                print("未找到 config.yaml 配置文件。请检查config.yaml文件是否存在。")
+                sys.exit()
             file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/linstor-csi.yaml"
             self.logger.log(f"在控制节点创建 linstor-csi.yaml 文件：{file_path}")
             braces = "{}"
@@ -1559,13 +1559,13 @@ spec:
                             self.base.com(command)
                         else:
                             print("配置文件中 controller_ip 部分为空！")
-                            exit()
+                            sys.exit()
                     else:
                         print("配置文件中未找到有效的 controller_ip 部分")
-                        exit()
+                        sys.exit()
             else:
-                print("未找到配置文件。")
-                exit()
+                print("未找到配置文件。请检查config.yaml文件是否存在。")
+                sys.exit()
             
             return True
         except Exception as e:
@@ -1740,5 +1740,4 @@ spec:
             self.logger.log(f"配置 ks-apiserver发生错误：{e}")  # debug
             return False
         
-
 
