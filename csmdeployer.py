@@ -10,6 +10,32 @@ class Csmdeployer:
     def __init__(self, logger):
         self.base = Base(logger)
         self.logger = logger
+        self.spec = None
+        self.controller_ip = None
+        self.check_controller_ip()
+
+    # 检测 配置文件里有没有 controller_ip 
+    def check_controller_ip(self):
+        # 从 csmdeployer_config.yaml 中读取特定内容
+        config_file = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/csmdeployer_config.yaml"
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as cfg:
+                config_data = yaml.safe_load(cfg)
+            if config_data and 'controller_ip' in config_data:
+                custom_controller_ip = config_data['controller_ip']
+                if custom_controller_ip['controller_ip']:
+                    self.controller_ip = custom_controller_ip['controller_ip']
+                else:
+                    print("csmdeployer_config.yaml 配置文件中 controller_ip 部分为空！")
+                    sys.exit()
+            else:
+                print("csmdeployer_config.yaml 配置文件中未找到有效的 controller_ip 部分")
+                sys.exit()
+            if config_data and 'spec' in config_data and config_data['spec']:
+                self.spec = config_data['spec']
+        else:
+            print("未找到 csmdeployer_config.yaml 配置文件。请检查 csmdeployer_config.yaml文件是否存在。")
+            sys.exit()
 
     # 配置 kubectl 工具
     def configure_kubectl_tool(self):  
@@ -958,33 +984,20 @@ spec:
             # 打开文件并读取内容
             with open(file_path, 'w') as file:
                 file.write(cluster_config)
-            
-            config_file = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/config.yaml"
 
-            if os.path.exists(config_file):
-                with open(config_file, 'r') as cfg:
-                    config_data = yaml.safe_load(cfg)
-                    if config_data and 'spec' in config_data and config_data['spec']:
-                        # 读取 cluster-config.yaml 中的现有内容
-                        with open(file_path, 'r') as file:
-                            cluster_data = yaml.safe_load(file)
+            # 读取 cluster-config.yaml 中的现有内容
+            with open(file_path, 'r') as file:
+                cluster_data = yaml.safe_load(file)
 
-                        # 合并 spec 部分
-                        if cluster_data and 'spec' in cluster_data:
-                            cluster_data['spec'].update(config_data['spec'])
+            # 合并 spec 部分
+            if cluster_data and 'spec' in cluster_data:
+                cluster_data['spec'].update(self.spec)
 
-                            # 将合并后的内容写入 cluster-config.yaml 文件
-                            with open(file_path, 'w') as file:
-                                yaml.dump(cluster_data, file)
-                            print("配置文件内容已合并到 cluster-config.yaml 文件。")
-                        else:
-                            print("cluster-config.yaml 文件中未找到有效的 spec 部分。")
-                    else:
-                        print("config.yaml 配置文件中未找到有效的 spec 部分或为空。默认将使用默认配置。")
-            else:
-                print("未找到 config.yaml 配置文件。将使用默认配置")
-
-
+            # 将合并后的内容写入 cluster-config.yaml 文件
+            with open(file_path, 'w') as file:
+                yaml.dump(cluster_data, file)
+                print("配置文件内容已合并到 cluster-config.yaml 文件。")
+                
             # 执行部署
             command = "kubectl apply -f ks-installer.yaml"
             self.base.com(command)
@@ -1053,25 +1066,12 @@ spec:
 
     # 部署 LINSTOR CSI
     def configure_linstor_csi(self):
+        controller_ip_value = None
         try:
-            # 从 config.yaml 中读取特定内容
-            config_file = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/config.yaml"
-            if os.path.exists(config_file):
-                with open(config_file, 'r') as cfg:
-                    config_data = yaml.safe_load(cfg)
-                if config_data and 'controller_ip' in config_data:
-                    custom_controller_ip = config_data['controller_ip']
-                    if custom_controller_ip['controller_ip']:
-                        controller_ip_value = f"http://{custom_controller_ip['controller_ip']}"
-                    else:
-                        print("config.yaml 配置文件中 controller_ip 部分为空！")
-                        sys.exit()
-                else:
-                    print("config.yaml 配置文件中未找到有效的 controller_ip 部分")
-                    sys.exit()
-            else:
-                print("未找到 config.yaml 配置文件。请检查config.yaml文件是否存在。")
-                sys.exit()
+            controller_ip_value = f"http://{self.controller_ip}"
+            # print(f"controller_ip_value: {controller_ip_value}")
+            # print(f"self.controller_ip: {self.controller_ip}")
+            # print(f"self.spec: {self.spec}")
             file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/linstor-csi.yaml"
             self.logger.log(f"在控制节点创建 linstor-csi.yaml 文件：{file_path}")
             braces = "{}"
@@ -1547,26 +1547,8 @@ spec:
     # 配置 LINSTOR Controller ConfigMap
     def configure_linstor_controller_configMap(self):
         try:
-            # 从 config.yaml 中读取特定内容
-            config_file = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/config.yaml"
-            if os.path.exists(config_file):
-                with open(config_file, 'r') as cfg:
-                    config_data = yaml.safe_load(cfg)
-                    if config_data and 'controller_ip' in config_data:
-                        custom_controller_ip = config_data['controller_ip']
-                        if custom_controller_ip['controller_ip']:
-                            command = f"kubectl create configmap linstorip -n kubesphere-system --from-literal=user=admin --from-literal=linstorip={custom_controller_ip['controller_ip']}:3370"
-                            self.base.com(command)
-                        else:
-                            print("配置文件中 controller_ip 部分为空！")
-                            sys.exit()
-                    else:
-                        print("配置文件中未找到有效的 controller_ip 部分")
-                        sys.exit()
-            else:
-                print("未找到配置文件。请检查config.yaml文件是否存在。")
-                sys.exit()
-            
+            command = f"kubectl create configmap linstorip -n kubesphere-system --from-literal=user=admin --from-literal=linstorip={self.controller_ip}:3370"
+            self.base.com(command)
             return True
         except Exception as e:
             print(f"配置 LINSTOR Controller ConfigMap时发生错误：{e}")
