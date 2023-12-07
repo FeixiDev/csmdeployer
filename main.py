@@ -21,6 +21,14 @@ def initialising_cosan_manager(csm):
         print("初始化完成")
     csm.default_execution()
     print("默认镜像替换完成")
+
+# 更改 image
+def exchange_image(csm):
+    if csm.update_images_from_config():
+        print("更新 image 完成")
+
+# 部署 LINSTOR CSI
+def deploy_linstaor_csi(csm):
     if csm.configure_linstor_csi():
         print("部署 LINSTOR CSI 完成")
     if csm.create_storageclass():
@@ -39,7 +47,7 @@ def display_version():
     print("version: v1.0.0")
 
 def main():
-    parser = argparse.ArgumentParser(description='None')
+    parser = argparse.ArgumentParser(description='csmdeployer')
     parser.add_argument('-i', '--initialise', action='store_true',
                         help='initialising CoSAN Manager')
     parser.add_argument('-k', '--kubernetes', action='store_true',
@@ -48,27 +56,23 @@ def main():
                         help='configuring distributed storage nodes')
     parser.add_argument('-e', '--exchange', action='store_true',
                         help='exchange image')
+    parser.add_argument('-d', '--deploy', action='store_true',
+                        help='deploy linstaor csi')
     parser.add_argument('-v', '--version', action='store_true',
                         help='Show version information')
     args = parser.parse_args()
 
-    logger = Logger("log")
+    logger = Logger("csmdeployer")
     csm = Csmdeployer(logger)
     
-    if args.initialise:
-        initialising_cosan_manager(csm)
-        if args.exchange: 
-            if csm.update_images_from_config():
-                print("更新 image 完成")
-    elif args.kubernetes:
-        kubernetes(csm)
-    elif args.configure:
-        configure_distributed_storage_nodes(csm)
+    if args.exchange: 
+        exchange_image(csm) 
     elif args.version:
         display_version()
     else:
         kubernetes(csm)
         initialising_cosan_manager(csm)
+        deploy_linstaor_csi(csm)
         configure_distributed_storage_nodes(csm)
 
 if __name__ == '__main__':
