@@ -6,6 +6,8 @@ from csmdeployer import Csmdeployer
 
 # kubernetes 集群预配置
 def kubernetes(csm):
+    if csm.initialising_kubernetes_cluster():
+        print("初始化 Kubernetes 集群完成\n")
     if csm.configure_kubectl_tool():
         print("配置 kubectl 工具完成")
     if csm.configure_net():
@@ -14,18 +16,21 @@ def kubernetes(csm):
         print("配置 controller 节点完成")
     if csm.configure_storageclass():
         print("配置默认 storageclass 完成")
+    print("\n",end="")
 
 # 初始化 CoSAN Manager
 def initialising_cosan_manager(csm):
     if csm.initialising_cosan_manager():
-        print("初始化完成")
-    csm.default_execution()
-    print("默认镜像替换完成")
+        print("初始化 CoSAN Manager 完成")
+    # csm.default_execution()
+    # print("默认镜像替换完成")
+    print("\n",end="")    
 
 # 更改 image
 def exchange_image(csm):
     if csm.update_images_from_config():
         print("更新 image 完成")
+    print("\n",end="")
 
 # 部署 LINSTOR CSI
 def deploy_linstaor_csi(csm):
@@ -35,6 +40,7 @@ def deploy_linstaor_csi(csm):
         print("创建 StorageClass 完成")
     if csm.create_pvc_of_iscsi():
         print("创建 iSCSI 功能用到的 pvc 完成")
+    print("\n",end="")
 
 # 配置分布式存储节点
 def configure_distributed_storage_nodes(csm):
@@ -42,6 +48,12 @@ def configure_distributed_storage_nodes(csm):
         print("配置 LINSTOR Controller ConfigMap 完成")
     if csm.configure_ks_apiserver():
         print("配置 ks-apiserver 完成")
+    print("\n",end="")
+
+# 执行追加方法
+def execute_additiona_methods(csm):
+    if csm.additiona_methods():
+        print("\n",end="")
 
 def display_version():
     print("version: v1.0.0")
@@ -49,17 +61,17 @@ def display_version():
 def main():
     parser = argparse.ArgumentParser(description='csmdeployer')
     parser.add_argument('-i', '--initialise', action='store_true',
-                        help='initialising CoSAN Manager')
+                        help=argparse.SUPPRESS)
     parser.add_argument('-k', '--kubernetes', action='store_true',
-                        help='Deploying kubernetes cluster preconfiguration')
+                        help=argparse.SUPPRESS)
     parser.add_argument('-c', '--configure', action='store_true',
-                        help='configuring distributed storage nodes')
+                        help=argparse.SUPPRESS)
     parser.add_argument('-e', '--exchange', action='store_true',
                         help='exchange image')
     parser.add_argument('-d', '--deploy', action='store_true',
-                        help='deploy linstaor csi')
+                        help=argparse.SUPPRESS)
     parser.add_argument('-v', '--version', action='store_true',
-                        help='Show version information')
+                        help='show version information')
     args = parser.parse_args()
 
     logger = Logger("csmdeployer")
@@ -70,10 +82,13 @@ def main():
     elif args.version:
         display_version()
     else:
+        print("开始进行部署\n")
         kubernetes(csm)
         initialising_cosan_manager(csm)
         deploy_linstaor_csi(csm)
         configure_distributed_storage_nodes(csm)
+        execute_additiona_methods(csm)
+        print("部署完成")
 
 if __name__ == '__main__':
     main()
