@@ -12,6 +12,7 @@ class Csmdeployer:
         self.logger = logger
         self.spec = None
         self.controller_ip = None
+        self.kubernetes_control_endpoint = None
         self.check_controller_ip()
 
     # 检测 配置文件里有没有 controller_ip 
@@ -21,21 +22,41 @@ class Csmdeployer:
         if os.path.exists(config_file):
             with open(config_file, 'r') as cfg:
                 config_data = yaml.safe_load(cfg)
-            if config_data and 'controller_ip' in config_data:
-                custom_controller_ip = config_data['controller_ip']
-                if custom_controller_ip['controller_ip']:
-                    self.controller_ip = custom_controller_ip['controller_ip']
+            if config_data and 'vsds_controller_ip' in config_data:
+                custom_controller_ip = config_data['vsds_controller_ip']
+                if custom_controller_ip:
+                    self.controller_ip = custom_controller_ip
                 else:
-                    print("csmdeployer_config.yaml 配置文件中 controller_ip 部分为空！")
+                    print("csmdeployer_config.yaml 配置文件中 vsds_controller_ip 部分为空！")
                     sys.exit()
             else:
-                print("csmdeployer_config.yaml 配置文件中未找到有效的 controller_ip 部分")
+                print("csmdeployer_config.yaml 配置文件中未找到有效的 vsds_controller_ip 部分")
                 sys.exit()
+            if config_data and 'kubernetes_control_endpoint' in config_data and config_data['kubernetes_control_endpoint']:
+                self.kubernetes_control_endpoint = config_data['kubernetes_control_endpoint']
+            else:
+                print("kubernetes_control_endpoint 配置错误，请检查")
+                sys.exit()
+
             if config_data and 'spec' in config_data and config_data['spec']:
                 self.spec = config_data['spec']
         else:
             print("未找到 csmdeployer_config.yaml 配置文件。请检查 csmdeployer_config.yaml文件是否存在。")
             sys.exit()
+
+    # 初始化 Kubernetes 集群
+    def initialising_kubernetes_cluster(self):
+        try:
+            command = f"kubeadm init --kubernetes-version=v1.20.5 --image-repository registry.aliyuncs.com/google_containers --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint {self.kubernetes_control_endpoint}:6443 --apiserver-advertise-address {self.kubernetes_control_endpoint} --upload-certs"
+            result = self.base.com(command).stdout
+            # 做操作
+            
+
+            return True
+        except Exception as e:
+            print(f"初始化 Kubernetes 集群发生错误：{e}")
+            self.logger.log(f"初始化 Kubernetes 集群发生错误：{e}")  # debug
+            return False
 
     # 配置 kubectl 工具
     def configure_kubectl_tool(self):  
@@ -996,7 +1017,7 @@ spec:
             # 将合并后的内容写入 cluster-config.yaml 文件
             with open(file_path, 'w') as file:
                 yaml.dump(cluster_data, file)
-                print("配置文件内容已合并到 cluster-config.yaml 文件。")
+                print("配置文件内容已合并到 cluster-config.yaml 文件")
                 
             # 执行部署
             command = "kubectl apply -f ks-installer.yaml"
@@ -1068,6 +1089,7 @@ spec:
     def configure_linstor_csi(self):
         controller_ip_value = None
         try:
+            print("开始部署 LINSTOR CSI")
             controller_ip_value = f"http://{self.controller_ip}"
             # print(f"controller_ip_value: {controller_ip_value}")
             # print(f"self.controller_ip: {self.controller_ip}")
@@ -1624,7 +1646,7 @@ spec:
       - command:
         - ks-apiserver
         - --logtostderr=true
-        image: feixitek/vtel-server:v1.0.4-ppc64
+        image: feixitek/vtel-server:v1.1.0-ppc64
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 8
@@ -1650,8 +1672,8 @@ spec:
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
-        # - name: iscsi
-        #   mountPath: /etc/iscsi
+        - name: iscsi
+          mountPath: /etc/iscsi
         - name: localssh
           mountPath: /etc/localssh
         - mountPath: /etc/linstorip
@@ -1722,4 +1744,258 @@ spec:
             self.logger.log(f"配置 ks-apiserver发生错误：{e}")  # debug
             return False
         
+    def additiona_methods(self):
+        try:
+            # command = f"kubectl create namespace kubesphere-monitoring-system"
+            # self.base.com(command)
 
+            # command = f"kubectl get namespaces"
+            # self.base.com(command)
+
+            command = f"kubectl set image deployment.apps/notification-manager-operator notification-manager-operator=feixitek/notification-manager-operator-ppc64le:1.4.0 -n kubesphere-monitoring-system"
+            self.base.com(command)
+
+            # 创建 notifica_deploy.yaml 文件
+            file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/notifica_deploy.yaml"
+            self.logger.log(f"在控制节点创建 notifica_deploy.yaml 文件：{file_path}")
+            notifica_deploy_config = textwrap.dedent('''
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: notification.kubesphere.io/v2beta2
+kind: NotificationManager
+metadata:
+  annotations:
+    meta.helm.sh/release-name: notification-manager
+    meta.helm.sh/release-namespace: kubesphere-monitoring-system
+  creationTimestamp: "2023-12-14T02:42:50Z"
+  generation: 1
+  labels:
+    app: notification-manager
+    app.kubernetes.io/managed-by: Helm
+  name: notification-manager
+  resourceVersion: "3627"
+  uid: d39915f0-ce76-43dc-9fea-d2143c152262
+spec:
+  affinity: {}
+  defaultConfigSelector:
+    matchLabels:
+      type: default
+  defaultSecretNamespace: kubesphere-monitoring-federated
+  image: feixitek/notification-manager-ppc64le:1.4.0
+  imagePullPolicy: IfNotPresent
+  nodeSelector: {}
+  portName: webhook
+  receivers:
+    globalReceiverSelector:
+      matchLabels:
+        type: global
+    options:
+      email:
+        deliveryType: bulk
+        notificationTimeout: 5
+      global:
+        templateFile:
+        - /etc/notification-manager/template
+      slack:
+        notificationTimeout: 5
+      wechat:
+        notificationTimeout: 5
+    tenantKey: user
+    tenantReceiverSelector:
+      matchLabels:
+        type: tenant
+  replicas: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 5m
+      memory: 20Mi
+  serviceAccountName: notification-manager-sa
+  tolerations: []
+  volumeMounts:
+  - mountPath: /etc/notification-manager/
+    name: notification-manager-template
+  volumes:
+  - configMap:
+      defaultMode: 420
+      name: notification-manager-template
+    name: notification-manager-template
+            ''')                                                                                                 
+            # 打开文件并读取内容
+            with open(file_path, 'w') as file:
+                file.write(notifica_deploy_config)
+            
+            # 执行部署
+            command = "kubectl delete -f notifica_deploy.yaml"
+            self.base.com(command)
+            command = "kubectl apply -f notifica_deploy.yaml"
+            self.base.com(command)
+
+            # 创建 thans.yaml 文件
+            file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/thans.yaml"
+            self.logger.log(f"在控制节点创建 thans.yaml 文件：{file_path}")
+            thans_config = textwrap.dedent('''
+apiVersion: v1
+items:
+- apiVersion: monitoring.coreos.com/v1
+  kind: ThanosRuler
+  metadata:
+    generation: 1
+    labels:
+      app.kubernetes.io/component: thanos-ruler
+      app.kubernetes.io/instance: kubesphere
+      app.kubernetes.io/name: thanos-ruler
+      app.kubernetes.io/part-of: kube-prometheus
+      app.kubernetes.io/version: 0.25.2
+    managedFields:
+    - apiVersion: monitoring.coreos.com/v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:kubectl.kubernetes.io/last-applied-configuration: {}
+          f:labels:
+            .: {}
+            f:app.kubernetes.io/component: {}
+            f:app.kubernetes.io/instance: {}
+            f:app.kubernetes.io/name: {}
+            f:app.kubernetes.io/part-of: {}
+            f:app.kubernetes.io/version: {}
+        f:spec:
+          .: {}
+          f:affinity:
+            .: {}
+            f:podAntiAffinity:
+              .: {}
+              f:preferredDuringSchedulingIgnoredDuringExecution: {}
+          f:alertmanagersUrl: {}
+          f:image: {}
+          f:nodeSelector:
+            .: {}
+            f:kubernetes.io/os: {}
+          f:podMetadata:
+            .: {}
+            f:labels:
+              .: {}
+              f:app.kubernetes.io/component: {}
+              f:app.kubernetes.io/instance: {}
+              f:app.kubernetes.io/name: {}
+              f:app.kubernetes.io/part-of: {}
+              f:app.kubernetes.io/version: {}
+          f:queryEndpoints: {}
+          f:replicas: {}
+          f:resources:
+            .: {}
+            f:limits:
+              .: {}
+              f:cpu: {}
+              f:memory: {}
+            f:requests:
+              .: {}
+              f:cpu: {}
+              f:memory: {}
+          f:ruleNamespaceSelector: {}
+          f:ruleSelector:
+            .: {}
+            f:matchLabels:
+              .: {}
+              f:role: {}
+              f:thanos-ruler: {}
+          f:tolerations: {}
+      manager: kubectl-client-side-apply
+      operation: Update
+      time: "2023-12-14T02:43:02Z"
+    name: kubesphere
+    namespace: kubesphere-monitoring-system
+    resourceVersion: "3694"
+    uid: bcb47d03-3071-4ae3-a1ae-b801e547fd9d
+  spec:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: thanos-ruler
+                app.kubernetes.io/instance: kubesphere
+                app.kubernetes.io/name: thanos-ruler
+                app.kubernetes.io/part-of: kube-prometheus
+            namespaces:
+            - kubesphere-monitoring-system
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    alertmanagersUrl:
+    - dnssrv+http://alertmanager-operated.kubesphere-monitoring-system.svc:9093
+    image: thanosio/thanos-linux-ppc64le:v0.26.0
+    nodeSelector:
+      kubernetes.io/os: linux
+    podMetadata:
+      labels:
+        app.kubernetes.io/component: thanos-ruler
+        app.kubernetes.io/instance: kubesphere
+        app.kubernetes.io/name: thanos-ruler
+        app.kubernetes.io/part-of: kube-prometheus
+        app.kubernetes.io/version: 0.25.2
+    queryEndpoints:
+    - http://prometheus-operated.kubesphere-monitoring-system.svc:9090
+    replicas: 1
+    resources:
+      limits:
+        cpu: "1"
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 100Mi
+    ruleNamespaceSelector: {}
+    ruleSelector:
+      matchLabels:
+        role: alert-rules
+        thanos-ruler: kubesphere
+    tolerations: []
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+            ''')
+            # 打开文件并读取内容
+            with open(file_path, 'w') as file:
+                file.write(thans_config)
+            
+            # 执行部署
+            command = "kubectl delete -f thans.yaml"
+            self.base.com(command)
+            command = "kubectl apply -f thans.yaml"
+            self.base.com(command)
+
+            # 执行以下命令
+            command = "kubectl set resources statefulset.apps/prometheus-k8s -c=prometheus --limits=memory=8Gi,cpu=8 --requests=memory=8Gi,cpu=8 -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources statefulset.apps/prometheus-k8s -c=config-reloader --limits=memory=200Mi,cpu=100m --requests=memory=200Mi,cpu=100m -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources deployment.apps/default-http-backend -c=default-http-backend --limits=memory=100Mi,cpu=10m --requests=memory=100Mi,cpu=10m -n kubesphere-controls-system"
+            self.base.com(command)
+            command = "kubectl set resources deployment.apps/coredns -c=coredns --limits=memory=270Mi --requests=memory=200Mi,cpu=100m -n kube-system"
+            self.base.com(command)
+            command = "kubectl set resources deployment.apps/notification-manager-operator -c=kube-rbac-proxy --limits=memory=2Gi,cpu=400m --requests=memory=1Gi,cpu=400m -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources deployment.apps/notification-manager-operator -c=notification-manager-operator --limits=memory=100Mi,cpu=50m --requests=memory=100Mi,cpu=50m -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources deployment.apps/notification-manager-deployment -c=notification-manager --limits=memory=500Mi,cpu=500m --requests=memory=200Mi,cpu=50m -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources statefulset.apps/alertmanager-main -c=alertmanager --limits=memory=800Mi,cpu=200m --requests=memory=800Mi,cpu=100m -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources statefulset.apps/alertmanager-main -c=config-reloader --limits=memory=200Mi,cpu=100m --requests=memory=200Mi,cpu=100m -n kubesphere-monitoring-system"
+            self.base.com(command)
+            command = "kubectl set resources deployment.apps/prometheus-operator -c=prometheus-operator --limits=memory=500Mi,cpu=200m --requests=memory=300Mi,cpu=100m -n kubesphere-monitoring-system"
+            self.base.com(command)
+
+            return True
+        except Exception as e:
+            print(f"执行追加方法发生错误：{e}")
+            self.logger.log(f"执行追加方法发生错误：{e}")  # debug
+            return False
