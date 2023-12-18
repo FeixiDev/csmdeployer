@@ -1,8 +1,9 @@
 #! /usr/bin/env python3
 
 import argparse
+import sys
 from log_record import Logger
-from csmdeployer import Csmdeployer
+from csmdeployer import Csmdeployer, Exchange
 
 # kubernetes 集群预配置
 def kubernetes(csm):
@@ -22,14 +23,12 @@ def kubernetes(csm):
 def initialising_cosan_manager(csm):
     if csm.initialising_cosan_manager():
         print("初始化 CoSAN Manager 完成")
-    # csm.default_execution()
-    # print("默认镜像替换完成")
     print("\n",end="")    
 
 # 更改 image
-def exchange_image(csm):
-    if csm.update_images_from_config():
-        print("更新 image 完成")
+def exchange_image(exc):
+    if exc.update_images_from_config():
+        print("更新 image 方法执行完成")
     print("\n",end="")
 
 # 部署 LINSTOR CSI
@@ -74,13 +73,16 @@ def main():
                         help='show version information')
     args = parser.parse_args()
 
+    if args.version:
+        display_version()
+        sys.exit()
+
     logger = Logger("csmdeployer")
     csm = Csmdeployer(logger)
+    exc = Exchange(logger)
     
     if args.exchange: 
-        exchange_image(csm) 
-    elif args.version:
-        display_version()
+        exchange_image(exc) 
     else:
         print("开始进行部署\n")
         kubernetes(csm)
