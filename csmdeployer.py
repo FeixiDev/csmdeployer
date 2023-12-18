@@ -2,9 +2,72 @@
 import os
 import sys
 import textwrap
+import time
 import yaml
 
 from base import Base
+class Exchange:
+    def __init__(self, logger):
+        self.base = Base(logger)
+        self.logger = logger
+
+    def update_images_from_config(self):
+        try:
+            image_file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/image.yaml"
+            
+            if os.path.exists(image_file_path):
+                with open(image_file_path, 'r') as image_file:
+                    image_data = yaml.safe_load(image_file)
+                    
+                    if 'image' in image_data:
+                        images = image_data['image']
+                        
+                        # 判断是否为空值或是否存在相应的镜像版本，如果存在版本号，则更新对应的 Kubernetes 部署
+                        if images.get('ks-console'):
+                            self.set_image_deployment('ks-console', images['ks-console'], 'kubesphere-system')
+
+                        if images.get('ks-apiserver'):
+                            self.set_image_deployment('ks-apiserver', images['ks-apiserver'], 'kubesphere-system')
+
+                        if images.get('ks-controller-manager'):
+                            self.set_image_deployment('ks-controller-manager', images['ks-controller-manager'], 'kubesphere-system')
+
+                        if images.get('default-http-backend'):
+                            self.set_image_deployment('default-http-backend', images['default-http-backend'], 'kubesphere-controls-system')
+
+                        if images.get('kubectl-admin'):
+                            self.set_image_deployment('kubectl-admin', images['kubectl-admin'], 'kubesphere-controls-system')
+                    else:
+                        print("image.yaml 配置文件中未找到镜像部分，程序终止")
+                        sys.exit()
+            else:
+                print("未找到 image.yaml 配置文件，程序终止")
+                sys.exit()
+
+            return True
+        except Exception as e:
+            print(f"更新镜像版本时发生错误：{e}")
+            self.logger.log(f"更新镜像版本时发生错误：{e}")  # debug
+            return False
+
+    def set_image_deployment(self, deployment_name, image_version_in_config, namespace):
+        if image_version_in_config:
+            command = f"kubectl set image deployment {deployment_name} {deployment_name}={image_version_in_config} -n {namespace}"
+            result = self.base.com(command).stdout
+            if "not found" in result:
+                print(f"找不到 {deployment_name}的 image 版本, 请查看日志检查问题")
+            else:
+                print(f"{deployment_name} image 版本更新为 {image_version_in_config}，更新完成")
+            
+    # def default_execution(self):
+    #     command = '''
+    #     kubectl set image deployment ks-console ks-console=feixitek/cosan-console:v1.0.5-ppc64 -n kubesphere-system
+    #     kubectl set image deployment ks-apiserver ks-apiserver=feixitek/vtel-server:v1.0.4-ppc64 -n kubesphere-system
+    #     kubectl set image deployment ks-controller-manager ks-controller-manager=feixitek/kscontrolmanagerppc64le:1.0 -n kubesphere-system
+    #     kubectl set image deployment default-http-backend default-http-backend=ibmcom/defaultbackend:1.5 -n kubesphere-controls-system
+    #     kubectl set image deployment kubectl-admin kubectl=feixitek/kubectl-ppc64le:1.20.4 -n kubesphere-controls-system
+    #     '''
+    #     self.base.com(command)
 
 class Csmdeployer:
     def __init__(self, logger):
@@ -1031,60 +1094,6 @@ spec:
             self.logger.log(f"配置默认 storageclass发生错误：{e}")  # debug
             return False
 
-    def update_images_from_config(self):
-        try:
-            image_file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/image.yaml"
-            
-            if os.path.exists(image_file_path):
-                with open(image_file_path, 'r') as image_file:
-                    image_data = yaml.safe_load(image_file)
-                    
-                    if 'image' in image_data:
-                        images = image_data['image']
-                        
-                        # 判断是否为空值或是否存在相应的镜像版本，如果存在版本号，则更新对应的 Kubernetes 部署
-                        if images.get('ks-console'):
-                            self.set_image_deployment('ks-console', images['ks-console'], 'feixitek/cosan-console:v1.0.5-ppc64', 'kubesphere-system')
-
-                        if images.get('ks-apiserver'):
-                            self.set_image_deployment('ks-apiserver', images['ks-apiserver'], 'feixitek/vtel-server:v1.0.4-ppc64', 'kubesphere-system')
-
-                        if images.get('ks-controller-manager'):
-                            self.set_image_deployment('ks-controller-manager', images['ks-controller-manager'], 'feixitek/kscontrolmanagerppc64le:1.0', 'kubesphere-system')
-
-                        if images.get('default-http-backend'):
-                            self.set_image_deployment('default-http-backend', images['default-http-backend'], 'ibmcom/defaultbackend:1.5', 'kubesphere-controls-system')
-
-                        if images.get('kubectl-admin'):
-                            self.set_image_deployment('kubectl-admin', images['kubectl-admin'], 'feixitek/kubectl-ppc64le:1.20.4', 'kubesphere-controls-system')
-                    else:
-                        print("image.yaml 配置文件中未找到镜像部分。按照默认方法执行")
-            else:
-                print("未找到 image.yaml 配置文件。按照默认方法执行")
-
-            return True
-        except Exception as e:
-            print(f"更新镜像版本时发生错误：{e}")
-            self.logger.log(f"更新镜像版本时发生错误：{e}")  # debug
-            return False
-
-    def set_image_deployment(self, deployment_name, image_version_in_config, default_image_version, namespace):
-        if image_version_in_config:
-            command = f"kubectl set image deployment {deployment_name} {deployment_name}={image_version_in_config} -n {namespace}"
-        else:
-            command = f"kubectl set image deployment {deployment_name} {deployment_name}={default_image_version} -n {namespace}"
-        self.base.com(command)
-    
-    def default_execution(self):
-        command = '''
-        kubectl set image deployment ks-console ks-console=feixitek/cosan-console:v1.0.5-ppc64 -n kubesphere-system
-        kubectl set image deployment ks-apiserver ks-apiserver=feixitek/vtel-server:v1.0.4-ppc64 -n kubesphere-system
-        kubectl set image deployment ks-controller-manager ks-controller-manager=feixitek/kscontrolmanagerppc64le:1.0 -n kubesphere-system
-        kubectl set image deployment default-http-backend default-http-backend=ibmcom/defaultbackend:1.5 -n kubesphere-controls-system
-        kubectl set image deployment kubectl-admin kubectl=feixitek/kubectl-ppc64le:1.20.4 -n kubesphere-controls-system
-        '''
-        self.base.com(command)
-
     # 部署 LINSTOR CSI
     def configure_linstor_csi(self):
         controller_ip_value = None
@@ -1710,9 +1719,9 @@ spec:
         hostPath:
           path: /root/.ssh
           type: ''
-      # - name: iscsi
-      #   persistentVolumeClaim:
-      #     claimName: iscsi
+      - name: iscsi
+        persistentVolumeClaim:
+          claimName: iscsi
       - configMap:
           defaultMode: 420
           name: linstorip
@@ -1734,14 +1743,79 @@ spec:
             with open(file_path, 'w') as file:
                 file.write(ks_apiserver_config)
 
-            # 执行部署
-            command = "kubectl apply -f ks-apiserver.yaml"
-            self.base.com(command)
-
-            return True
+            print(f"检查 pod 是否创建完全，请稍等")
+            self.logger.log(f"检查 pod 是否创建完全")
+            if self.run_with_timeout():
+                print("pod 创建完全，程序继续进行")
+                # 执行部署
+                command = "kubectl apply -f ks-apiserver.yaml"
+                self.base.com(command)
+                return True
+            else:
+                print("pod 创建超时")
+                sys.exit()
+                
         except Exception as e:
             print(f"配置 ks-apiserver发生错误：{e}")
             self.logger.log(f"配置 ks-apiserver发生错误：{e}")  # debug
+            return False
+        
+    def run_with_timeout(self):
+        start_time = time.time()
+        max_duration = 180  # 最长运行时间（3分钟）
+        interval = 10  # 每隔多久执行一次（10秒）
+
+        while True:
+            if time.time() - start_time > max_duration:
+                # 达到最长运行时间，返回 False
+                return False
+
+            result = self.check_and_execute()  # 执行检查方法
+
+            if result:
+                # 如果返回 True，中断执行，返回 True
+                return True
+
+            time.sleep(interval)  # 等待指定的间隔时间
+        
+    def check_and_execute(self):
+        try:
+            pod_names = [
+                'default-http',
+                'kubectl-admin',
+                'alertmanager-main',
+                'kube-state',
+                'node-exporter',
+                'notification-manager',
+                'prometheus-k8s',
+                'prometheus-operator',
+                'thanos-ruler',
+                'ks-apiserver',
+                'ks-console',
+                'ks-controller',
+                'ks-installer',
+            ]
+            
+            # 执行 kubectl get pod -A 命令并捕获输出
+            result = self.base.com("kubectl get pod -A").stdout
+            # 将输出按行分割
+            lines = result.split('\n')
+            buffer = 0
+            # 遍历每一行输出
+            for line in lines:
+                # 检查每个要匹配的 Pod 名称是否在当前行中
+                for name in pod_names:
+                    if name in line:
+                        buffer = buffer + 1
+                        self.logger.log(f"pod 检查存在: {name}")
+            
+            if buffer == 13:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(f"检查 pod 发生错误：{e}")
+            self.logger.log(f"检查 pod 发生错误：{e}")  # debug
             return False
         
     def additiona_methods(self):
