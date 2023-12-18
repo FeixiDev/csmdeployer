@@ -76,6 +76,7 @@ class Csmdeployer:
         self.spec = None
         self.controller_ip = None
         self.kubernetes_control_endpoint = None
+        self.pods_check_time = 180
         self.check_controller_ip()
 
     # 检测 配置文件里有没有 controller_ip 
@@ -103,9 +104,14 @@ class Csmdeployer:
 
             if config_data and 'spec' in config_data and config_data['spec']:
                 self.spec = config_data['spec']
+            
+            if config_data and 'pods_check_time' in config_data and config_data['pods_check_time']:
+                self.pods_check_time = config_data['pods_check_time']
+                
         else:
             print("未找到 csmdeployer_config.yaml 配置文件。请检查 csmdeployer_config.yaml文件是否存在。")
             sys.exit()
+        # print(f"self.pods_check_time = {self.pods_check_time}")
 
     # 初始化 Kubernetes 集群
     def initialising_kubernetes_cluster(self):
@@ -113,7 +119,6 @@ class Csmdeployer:
             command = f"kubeadm init --kubernetes-version=v1.20.5 --image-repository registry.aliyuncs.com/google_containers --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint {self.kubernetes_control_endpoint}:6443 --apiserver-advertise-address {self.kubernetes_control_endpoint} --upload-certs"
             result = self.base.com(command).stdout
             # 做操作
-            
 
             return True
         except Exception as e:
@@ -1747,6 +1752,10 @@ spec:
             self.logger.log(f"检查 pod 是否创建完全")
             if self.run_with_timeout():
                 print("pod 创建完全，程序继续进行")
+
+                command = "kubectl delete -f ks-apiserver.yaml"
+                self.base.com(command)
+                
                 # 执行部署
                 command = "kubectl apply -f ks-apiserver.yaml"
                 self.base.com(command)
@@ -1762,8 +1771,8 @@ spec:
         
     def run_with_timeout(self):
         start_time = time.time()
-        max_duration = 180  # 最长运行时间（3分钟）
-        interval = 10  # 每隔多久执行一次（10秒）
+        max_duration = self.pods_check_time  # 最长运行时间
+        interval = 20  # 每隔多久执行一次
 
         while True:
             if time.time() - start_time > max_duration:
@@ -1781,18 +1790,18 @@ spec:
     def check_and_execute(self):
         try:
             pod_names = [
-                'default-http',
+                'default-http-backend',
                 'kubectl-admin',
                 'alertmanager-main',
-                'kube-state',
+                'kube-state-metrics',
                 'node-exporter',
-                'notification-manager',
+                'notification-manager-operator',
                 'prometheus-k8s',
                 'prometheus-operator',
                 'thanos-ruler',
                 'ks-apiserver',
                 'ks-console',
-                'ks-controller',
+                'ks-controller-manager',
                 'ks-installer',
             ]
             
