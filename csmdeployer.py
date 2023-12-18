@@ -1781,18 +1781,18 @@ spec:
     def check_and_execute(self):
         try:
             pod_names = [
-                'default-http',
+                'default-http-backend',
                 'kubectl-admin',
                 'alertmanager-main',
-                'kube-state',
+                'kube-state-metrics',
                 'node-exporter',
-                'notification-manager',
+                'notification-manager-operator',
                 'prometheus-k8s',
                 'prometheus-operator',
                 'thanos-ruler',
                 'ks-apiserver',
                 'ks-console',
-                'ks-controller',
+                'ks-controller-manager',
                 'ks-installer',
             ]
             
