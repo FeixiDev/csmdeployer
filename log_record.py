@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import atexit
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
@@ -28,5 +29,16 @@ class Logger:
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
+        atexit.register(self.close_logger)  # 注册关闭日志的方法到 atexit 模块
+
     def log(self, message):
         self.logger.debug(message)
+
+    def close_logger(self):
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.stream.write('\n' + '-' * 50 + ' End of Log ' + '-' * 50 + '\n')
+                handler.flush()
+                handler.close()
+                self.logger.removeHandler(handler)
