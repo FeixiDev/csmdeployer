@@ -7,6 +7,8 @@ from csmdeployer import Csmdeployer, Exchange
 
 # kubernetes 集群预配置
 def kubernetes(csm):
+    if csm.prepare_image():
+        print("准备 image 完成\n")
     if csm.initialising_kubernetes_cluster():
         print("初始化 Kubernetes 集群完成\n")
     if csm.configure_kubectl_tool():
