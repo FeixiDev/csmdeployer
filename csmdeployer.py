@@ -113,6 +113,24 @@ class Csmdeployer:
             sys.exit()
         # print(f"self.pods_check_time = {self.pods_check_time}")
 
+    # 准备 image
+    def prepare_image(self):
+        try:
+            image_file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/hximage.tar"
+            if os.path.exists(image_file_path):
+                command = f"docker load -i hximage.tar"
+                result = self.base.com(command).stdout
+                return True
+            else:
+                print(f"hximage.tar 文件不存在")
+                self.logger.log(f"hximage.tar 文件不存在")  # debug
+                sys.exit()
+        except Exception as e:
+            print(f"准备 image发生错误：{e}")
+            self.logger.log(f"准备 image发生错误：{e}")  # debug
+            return False
+    
+    
     # 初始化 Kubernetes 集群
     def initialising_kubernetes_cluster(self):
         try:
