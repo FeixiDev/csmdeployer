@@ -57,7 +57,7 @@ def execute_additiona_methods(csm):
         print("\n",end="")
 
 def display_version():
-    print("version: v1.0.0")
+    print("version: v1.0.1")
 
 def main():
     parser = argparse.ArgumentParser(description='csmdeployer')
