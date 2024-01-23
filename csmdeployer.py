@@ -77,6 +77,7 @@ class Csmdeployer:
         self.controller_ip = None
         self.kubernetes_control_endpoint = None
         self.pods_check_time = 180
+        self.linstor_sc_autoplace = 3
         self.check_controller_ip()
 
     # 检测 配置文件里有没有 controller_ip 
@@ -107,12 +108,32 @@ class Csmdeployer:
             
             if config_data and 'pods_check_time' in config_data and config_data['pods_check_time']:
                 self.pods_check_time = config_data['pods_check_time']
-                
+
+            if config_data and 'linstor_sc_autoplace' in config_data and config_data['linstor_sc_autoplace']:
+                self.linstor_sc_autoplace = config_data['linstor_sc_autoplace']   
         else:
             print("未找到 csmdeployer_config.yaml 配置文件。请检查 csmdeployer_config.yaml文件是否存在。")
             sys.exit()
         # print(f"self.pods_check_time = {self.pods_check_time}")
 
+    # 准备 image
+    def prepare_image(self):
+        try:
+            image_file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/hximage.tar"
+            if os.path.exists(image_file_path):
+                command = f"docker load -i hximage.tar"
+                result = self.base.com(command).stdout
+                return True
+            else:
+                print(f"hximage.tar 文件不存在")
+                self.logger.log(f"hximage.tar 文件不存在")  # debug
+                sys.exit()
+        except Exception as e:
+            print(f"准备 image发生错误：{e}")
+            self.logger.log(f"准备 image发生错误：{e}")  # debug
+            return False
+    
+    
     # 初始化 Kubernetes 集群
     def initialising_kubernetes_cluster(self):
         try:
@@ -1520,14 +1541,14 @@ rules:
         try:
             file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/linstorsc.yaml"
             self.logger.log(f"在控制节点创建 linstorsc.yaml 文件：{file_path}")
-            linstorsc_config = textwrap.dedent('''
+            linstorsc_config = textwrap.dedent(f'''
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: linstor
 provisioner: linstor.csi.linbit.com
 parameters:
-  autoPlace: "3"
+  autoPlace: "{self.linstor_sc_autoplace}"
   storagePool: "thpool1"
             ''')
 
