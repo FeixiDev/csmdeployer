@@ -520,7 +520,7 @@ spec:
       serviceAccountName: openebs-maya-operator
       containers:
       - name: openebs-provisioner-hostpath
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         image: openebs/provisioner-localpv:3.3.0
         env:
         # OPENEBS_IO_K8S_MASTER enables openebs provisioner to connect to K8s
