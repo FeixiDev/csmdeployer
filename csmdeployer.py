@@ -78,6 +78,8 @@ class Csmdeployer:
         self.kubernetes_control_endpoint = None
         self.pods_check_time = 180
         self.linstor_sc_autoplace = 3
+        self.ks_apiserver_repo = "feixitek/vtel-server"
+        self.ks_apiserver_tag = "v1.1.1-ppc64"
         self.check_controller_ip()
 
     # 检测 配置文件里有没有 controller_ip 
@@ -105,12 +107,15 @@ class Csmdeployer:
 
             if config_data and 'spec' in config_data and config_data['spec']:
                 self.spec = config_data['spec']
+                self.ks_apiserver_repo = self.spec['ks_apiserver_repo']
+                self.ks_apiserver_tag = self.spec['ks_apiserver_tag']
             
             if config_data and 'pods_check_time' in config_data and config_data['pods_check_time']:
                 self.pods_check_time = config_data['pods_check_time']
 
             if config_data and 'linstor_sc_autoplace' in config_data and config_data['linstor_sc_autoplace']:
-                self.linstor_sc_autoplace = config_data['linstor_sc_autoplace']   
+                self.linstor_sc_autoplace = config_data['linstor_sc_autoplace']  
+                      
         else:
             print("未找到 csmdeployer_config.yaml 配置文件。请检查 csmdeployer_config.yaml文件是否存在。")
             sys.exit()
@@ -520,7 +525,7 @@ spec:
       serviceAccountName: openebs-maya-operator
       containers:
       - name: openebs-provisioner-hostpath
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         image: openebs/provisioner-localpv:3.3.0
         env:
         # OPENEBS_IO_K8S_MASTER enables openebs provisioner to connect to K8s
@@ -1617,7 +1622,8 @@ spec:
         try:
             file_path = f"{os.path.dirname(os.path.realpath(sys.argv[0]))}/ks-apiserver.yaml"
             self.logger.log(f"在控制节点创建 ks-apiserver.yaml 文件：{file_path}")
-            ks_apiserver_config = textwrap.dedent('''
+
+            ks_apiserver_config = textwrap.dedent(f'''
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1681,7 +1687,7 @@ spec:
       - command:
         - ks-apiserver
         - --logtostderr=true
-        image: feixitek/vtel-server:v1.1.0-ppc64
+        image: {self.ks_apiserver_repo}:{self.ks_apiserver_tag}
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 8
@@ -1723,7 +1729,7 @@ spec:
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
-      securityContext: {}
+      securityContext: {{}}
       serviceAccount: kubesphere
       serviceAccountName: kubesphere
       terminationGracePeriodSeconds: 30
